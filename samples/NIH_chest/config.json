@@ -1,0 +1,6 @@
+{
+	"NAME": "NIH_chest",
+	"CUDA_VISIBLE_DEIVCE": [0],
+	"GPU_ALLOW_GROWTH": true,
+	"BATCH_SIZE": 1
+}

@@ -85,14 +85,14 @@ def process_local(args):
 		print("train_val_list.txt not found, abort")
 		exit()
 	
-	# uncompress zipped imaged files
-	tarfile.TarFile.fileobject = get_file_progress_file_object_class(on_progress)
-	for file in os.listdir(os.path.join(args.raw_data_dir,"images")):
+	# # uncompress zipped imaged files
+	# tarfile.TarFile.fileobject = get_file_progress_file_object_class(on_progress)
+	# for file in os.listdir(os.path.join(args.raw_data_dir,"images")):
 
-		print("Start uncompress",file,"...")
-		tar = tarfile.open(fileobj=ProgressFileObject(os.path.join(raw_data_dir, file)))
-		tar.extractall(path=args.cache)
-		tar.close()
+	# 	print("Start uncompress",file,"...")
+	# 	tar = tarfile.open(fileobj=ProgressFileObject(os.path.join(raw_data_dir, file)))
+	# 	tar.extractall(path=args.cache)
+	# 	tar.close()
 
 	# read train/test and evaluation dataset list
 	with open(os.path.join(args.raw_data_dir, "train_val_list.txt"), 'r') as f: 
@@ -104,6 +104,8 @@ def process_local(args):
 	for data in os.listdir(os.path.join(args.cache,"images")):
 		if data in train_test_list:
 			train_test_list_local.append(data)
+
+
 
 	train_list, test_list = train_test_split(train_test_list_local, test_size=args.train_test_split)
 
@@ -138,8 +140,6 @@ def process_local(args):
 	pool.starmap(shutil.move,test_list_map)
 	print("Moving evaluation data...")
 	pool.starmap(shutil.move,eval_list_map)
-
-	# print(train_list_map)
 
 	shutil.rmtree(args.cache)
 
