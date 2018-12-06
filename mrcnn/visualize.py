@@ -12,6 +12,7 @@ import sys
 import random
 import itertools
 import colorsys
+import io
 
 import numpy as np
 from skimage.measure import find_contours
@@ -405,6 +406,10 @@ def draw_boxes(image, boxes=None, refined_boxes=None,
             style = "dotted"
             alpha = 1
         elif visibility == 2:
+            color = "gray"
+            style = "solid"
+            alpha = 1
+        elif visibility == 3:
             color = colors[i]
             style = "solid"
             alpha = 1
@@ -457,8 +462,8 @@ def draw_boxes(image, boxes=None, refined_boxes=None,
                 verts = np.fliplr(verts) - 1
                 p = Polygon(verts, facecolor="none", edgecolor=color)
                 ax.add_patch(p)
-    ax.imshow(masked_image.astype(np.uint8))
-
+    ax.imshow(masked_image.astype(np.uint8), cmap="gray")
+    plt.show()
 
 def display_table(table):
     """Display values in a table format.

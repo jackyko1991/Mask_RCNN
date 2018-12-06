@@ -1,7 +1,7 @@
 import argparse
 import train
 import os
-from dataset import Dataset
+import dataset
 import tensorflow as tf
 import Config
 
@@ -12,7 +12,7 @@ def parser():
 		description="Mask RCNN training on NIH chest xray dataset")
 	parser.add_argument('--phase', default="train",
 		dest="phase", type=str, help="learning phase (train or evaluate)")
-	parser.add_argument('--train-data-dir', default="./data/train",
+	parser.add_argument('--train-data-dir', default="./data/train_mini",
 		dest="train_data_dir", type=str, help="folder containing training dataset")
 	parser.add_argument('--test-data-dir', default="./data/test",
 		dest="test_data_dir", type=str, help="folder containing testing dataset")
@@ -48,6 +48,7 @@ def main():
 			with tf.device('/cpu:0'):
 				# create transformations to image and labels
 				trainTransforms = [
+					dataset.BboxNihToMrcnn()
 					# NiftiDataset.StatisticalNormalization(2.5),
 					# # NiftiDataset.Normalization(),
 					# NiftiDataset.Resample((0.45,0.45,0.45)),
@@ -56,18 +57,19 @@ def main():
 					# NiftiDataset.RandomNoise()
 					]
 
-				TrainDataset = Dataset(
+				TrainDataset = dataset.Dataset(
 					data_dir=args.train_data_dir,
 					transforms=trainTransforms,
 				    train=True,
 				    image_format="png",
 				    bbox_csv=args.bbox_csv,
 				    data_entry_csv=args.data_entry_csv,
-				    label_csv=args.label_csv
+				    label_csv=args.label_csv,
+				    no_finding_prob=0.0
 					)
 
 				trainDataset = TrainDataset.get_dataset()
-				trainDataset = trainDataset.shuffle(buffer_size=5)
+				# trainDataset = trainDataset.shuffle(buffer_size=5)
 				trainDataset = trainDataset.batch(config.getConfigValue("BATCH_SIZE"))
 				trainer.trainDataset = trainDataset
 

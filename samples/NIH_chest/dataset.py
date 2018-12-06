@@ -72,9 +72,9 @@ class Dataset(object):
 
 		bbox_image_paths = list(filter(None,bbox_image_paths))
 
-		dataset = tf.data.Dataset.from_tensor_slices((image_paths))
+		dataset = tf.data.Dataset.from_tensor_slices((bbox_image_paths))
 		dataset = dataset.map(lambda image_filename: tuple(tf.py_func(
-		self.input_parser, [image_filename], [tf.float32,tf.uint8, tf.float32])))
+		self.input_parser, [image_filename], [tf.string, tf.float32,tf.uint8, tf.float32])))
 
 		self.dataset = dataset
 		self.data_size = len(image_paths)
@@ -97,49 +97,89 @@ class Dataset(object):
 				img.SetSpacing((width_world/1024.,width_world/1024.))
 			else:
 				img.SetSpacing((height_world/1024.,height_world/1024.))
+
 		return img
 
-	def bbox_list_worker(self,image):
+	def bbox_list_worker(self,image_filename):
 		# check if image has a bbox label
-		if image in self.bbox["Image Index"].tolist():
-			return os.path.join(self.data_dir,image)
+		if image_filename in self.bbox["Image Index"].tolist():
+			return image_filename
 		else:
 			# has some probability to use no finding image
-			entry = self.data_entry.loc[self.data_entry['Image Index'] == image]
-			if entry.shape[0] > 0 and self.drop(self.no_finding_prob):
-				return os.path.join(self.data_dir,image)
+			entry = self.data_entry.loc[self.data_entry['Image Index'] == image_filename]
+
+			if ("No Finding" in entry["Finding Labels"].tolist()) and self.drop(self.no_finding_prob):
+				return image_filename
+			else:
+				return None
 
 	def read_label(self,filename):
-		entry = self.bbox.loc[self.data_entry['Image Index'] == filename]
-		finding = name_to_label(self.label_df,entry['Finding Label'].values[0])
+		entry = self.bbox.loc[self.bbox['Image Index'] == filename]
+		findings = []
+		bboxes = []
 
-		bbox = [entry['x'].values[0],
-				entry['y'].values[0],
-				entry['w'].values[0],
-				entry['h'].values[0]]
-		return finding, bbox
+		if len(entry.index) > 0:
+			for i in range(len(entry.index)):
+				findings.append(name_to_label(self.label_df,entry['Finding Label'].values[i]))
+				bboxes.append([entry['x'].values[i],
+							entry['y'].values[i],
+							entry['w'].values[i],
+							entry['h'].values[i]])
+		else:
+			findings.append(0)
+			bboxes.append([0,0,0,0])
+
+		return findings, bboxes
 
 	def input_parser(self,image_filename):
 		# read image and label
 		image = self.read_image(image_filename.decode("utf-8"))
-		finding, bbox = self.read_label(image_filename.decode("utf-8"))
+		findings, bboxes = self.read_label(image_filename.decode("utf-8"))
 
-		sample = {'image':image, 'finding': finding, 'bbox': bbox}
+		sample = {'image':image, 'findings': findings, 'bboxes': bboxes}
 
 		if self.transforms:
-		  for transform in self.transforms:
-		    sample = transform(sample)
+			for transform in self.transforms:
+				sample = transform(sample)
 
 		# convert sample to tf tensors
 		image = sitk.GetArrayFromImage(sample['image'])
 
 		# type casting
 		image = np.asarray(image, np.float32)
-		finding = np.asarray(sample['finding'], np.uint8)
-		bbox = np.asarray(sample['bbox'], np.float32)
+		findings = np.asarray(sample['findings'], np.uint8)
+		bboxes = np.asarray(sample['bboxes'], np.float32)
 
 		# # to unify matrix dimension order between SimpleITK([x,y,z]) and numpy([z,y,x])
 		# image_np = np.transpose(image_np,(2,1,0))
 		# label_np = np.transpose(label_np,(2,1,0))
 
-		return image, finding, bbox
+		return image_filename.decode("utf-8"), image, findings, bboxes
+
+class BboxNihToMrcnn(object):
+	"""
+	Convert bbox coordinate from nih raw data to mrcnn network
+	"""
+
+	def __init__(self):
+		self.name = 'BboxNihToMrcnn'
+
+	def __call__(self, sample):
+		image = sample['image']
+		findings = sample['findings']
+		bboxes = sample['bboxes']
+
+		# xywh to y1x1y2x2
+		bboxes_ = []
+		for bbox in bboxes:
+			bbox[2] = bbox[0] + bbox[2]
+			bbox[3] = bbox[1] + bbox[3]
+
+			bbox[0], bbox[1] = np.round(bbox[1]), np.round(bbox[0])
+			bbox[2], bbox[3] = np.round(bbox[3]), np.round(bbox[2])
+
+			bboxes_.append(bbox)
+
+		bboxes = bboxes_
+
+		return {'image': image, 'findings': findings, 'bboxes': bboxes}
